@@ -17,5 +17,5 @@ A comprehensive Python toolkit for analyzing feature interactions in machine lea
 ## Installation
 
 ```bash
-pip install pymltools
+pip install ml-feature-toolkit
 
