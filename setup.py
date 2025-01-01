@@ -24,7 +24,7 @@ setup(
     description="A package for analyzing feature interactions in machine learning models",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/feature_interaction",
+    url="https://github.com/HishamSalem?tab=repositories",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
