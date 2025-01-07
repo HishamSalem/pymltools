@@ -6,7 +6,6 @@ __author__ = "Hisham Salem"
 
 # Define public API
 __all__ = [
-    # Add your public functions/classes here
     'feature_binning',
     'shap_significance'
 ]
