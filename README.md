@@ -1,4 +1,4 @@
-# pymltools
+# predykt
 
 A comprehensive Python toolkit for analyzing feature interactions in machine learning models, combining multiple methodologies to provide deep insights into feature relationships and their impact on model behavior.
 
@@ -17,4 +17,3 @@ A comprehensive Python toolkit for analyzing feature interactions in machine lea
 
 ```bash
 pip install ml-feature-toolkit
-
