@@ -7,7 +7,7 @@ A comprehensive Python toolkit for analyzing feature interactions in machine lea
 ### Interaction Analysis Methods
 - **SHAP Interaction Analysis**: Leverages SHAP values to detect and quantify feature interactions
 - **Feature Binning Analysis**: Uses optimal binning techniques to identify non-linear relationships
-- **Sensitivity Analysis**: Implements Sobol indices to measure feature interaction effects
+- **Sensitivity Analysis**: Implements Sobol indices to measure feature interaction effects (TBD)
 
 ### Key Capabilities
 - Statistical significance testing for interactions
