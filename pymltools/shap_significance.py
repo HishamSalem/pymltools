@@ -1,19 +1,27 @@
 """
-SHAP Interaction Significance via Bootstrap Stability Testing
-=============================================================
+SHAP Interaction Stability via Bootstrap Refit Testing
+======================================================
 
-Tests whether SHAP interaction values are statistically significant
-by measuring their stability across multiple model fits with varied
-random seeds, then validating across algorithm families.
+Tests whether SHAP interaction values are robust across multiple model
+fits with varied random seeds, then validates across algorithm families.
 
 Replaces the permutation-on-fixed-model approach (which tests the wrong
 null hypothesis) with a refit-across-seeds approach that tests whether
-the interaction is a stable property of the data-generating process.
+the interaction is a stable property of the model — not an artifact of
+a single random seed.
 
 Core idea:
-    - A real interaction should be stable across random seeds (p-value)
+    - A real interaction should be stable across random seeds (instability_score)
     - A real interaction should have predictive power (per-interaction AUC)
     - A real interaction should appear across multiple algorithms (vote)
+
+NOTE: This procedure tests *algorithmic stability* — whether a given
+interaction persists regardless of model randomness (seed, subsampling,
+initialization). It does NOT test statistical significance in the
+frequentist sense (i.e., it does not test against a null derived from
+the data-generating process). The instability_score quantifies how
+often the interaction's sign flips across seeds; lower values indicate
+a more robust interaction.
 """
 
 import numpy as np
@@ -37,25 +45,40 @@ import multiprocessing
 
 @dataclass
 class InteractionResult:
-    """Result for a single feature pair from a single algorithm."""
+    """Result for a single feature pair from a single algorithm.
+
+    Attributes
+    ----------
+    instability_score : float
+        Proportion of seeds where the interaction's sign differs from
+        the majority direction, doubled to form a two-sided score.
+        Range [0, 1]. Lower = more stable. NOT a frequentist p-value.
+    robust : bool
+        True if instability_score < alpha threshold, indicating the
+        interaction is stable across seeds.
+    """
     feature_i: str
     feature_j: str
     algorithm: str
     mean_interaction: float
     std_interaction: float
-    p_value: float
+    instability_score: float
     per_interaction_auc: float
     mean_auc: float
     std_auc: float
     n_seeds: int
-    significant: bool
+    robust: bool
     interaction_distribution: np.ndarray = field(repr=False)
     auc_distribution: np.ndarray = field(repr=False)
 
 
 @dataclass
 class VoteResult:
-    """Cross-algorithm vote result for a single feature pair."""
+    """Cross-algorithm vote result for a single feature pair.
+
+    A pair receives a vote from an algorithm if it is robust
+    (instability_score < alpha) across that algorithm's seed runs.
+    """
     feature_i: str
     feature_j: str
     n_votes: int
@@ -79,8 +102,13 @@ class VoteResult:
 
 class InteractionTester:
     """
-    Test SHAP interaction significance for a single algorithm by
-    refitting across multiple random seeds and measuring stability.
+    Test SHAP interaction stability for a single algorithm by refitting
+    across multiple random seeds and measuring consistency.
+
+    This is a *robustness screen*, not a hypothesis test. It answers:
+    "Does this interaction persist regardless of model randomness?"
+    rather than "Is this interaction statistically significant under
+    a formal null distribution?"
 
     Parameters
     ----------
@@ -93,7 +121,8 @@ class InteractionTester:
     n_seeds : int
         Number of random seeds to fit. Default 200.
     alpha : float
-        Significance threshold for p-values.
+        Threshold for instability_score below which an interaction is
+        considered robust.
     use_gpu : bool
         Whether to use GPU-accelerated SHAP explainer.
     n_jobs : int
@@ -186,17 +215,24 @@ class InteractionTester:
 
         return pair_results
 
-    def _compute_p_value(self, distribution: np.ndarray) -> float:
+    def _compute_instability_score(self, distribution: np.ndarray) -> float:
         """
-        Empirical p-value: test if bootstrap distribution is centered at zero.
-        Two-sided sign-based test.
+        Compute instability score for a bootstrap distribution of
+        interaction values across seeds.
+
+        Measures the proportion of seeds where the interaction's sign
+        opposes the majority direction, doubled to form a two-sided
+        score. Range [0, 1]. Lower = more stable.
+
+        This is NOT a frequentist p-value. It quantifies how consistently
+        the interaction points in the same direction across model fits.
         """
         observed_mean = np.mean(distribution)
         if observed_mean > 0:
-            p = np.mean(distribution <= 0)
+            score = np.mean(distribution <= 0)
         else:
-            p = np.mean(distribution >= 0)
-        return float(min(p * 2, 1.0))
+            score = np.mean(distribution >= 0)
+        return float(min(score * 2, 1.0))
 
     def test_pairs(
         self,
@@ -224,7 +260,8 @@ class InteractionTester:
 
         Returns
         -------
-        List of InteractionResult, one per pair.
+        List of InteractionResult, one per pair. Each result contains
+        an instability_score (lower = more robust) and a robust flag.
         """
         if seeds is None:
             seeds = np.arange(self.n_seeds)
@@ -263,7 +300,7 @@ class InteractionTester:
                 sr[(idx_i, idx_j)]["auc"] for sr in all_seed_results
             ])
 
-            p_value = self._compute_p_value(interaction_dist)
+            instability_score = self._compute_instability_score(interaction_dist)
 
             results.append(InteractionResult(
                 feature_i=feat_i,
@@ -271,12 +308,12 @@ class InteractionTester:
                 algorithm=self.model_class.__name__,
                 mean_interaction=float(np.mean(interaction_dist)),
                 std_interaction=float(np.std(interaction_dist)),
-                p_value=p_value,
+                instability_score=instability_score,
                 per_interaction_auc=float(np.mean(auc_dist)),
                 mean_auc=float(np.mean(auc_dist)),
                 std_auc=float(np.std(auc_dist)),
                 n_seeds=len(seeds),
-                significant=p_value < self.alpha,
+                robust=instability_score < self.alpha,
                 interaction_distribution=interaction_dist,
                 auc_distribution=auc_dist,
             ))
@@ -292,9 +329,12 @@ class InteractionTester:
     ) -> List[Tuple[str, str]]:
         """
         Quick screening: single-fit SHAP interactions to identify
-        candidate pairs for full bootstrap testing.
+        candidate pairs for full stability testing.
 
-        Use this to pre-filter before running the expensive test_pairs.
+        NOTE: This uses a single seed for speed. Pairs selected here
+        may include false positives that the full test_pairs run will
+        filter out. This is intentional — it's a cheap pre-filter,
+        not a final result.
         """
         params = {**self.base_params, self.seed_param: seed}
         model = self.model_class(**params)
@@ -322,6 +362,11 @@ class InteractionTester:
     ) -> pd.DataFrame:
         """
         Convert results to DataFrame with optional multiple testing correction.
+
+        The correction is applied to instability_scores. While these are
+        not formal p-values, the BH procedure is still valid as a
+        monotonic threshold adjustment that controls the proportion of
+        unstable interactions incorrectly labelled as robust.
         """
         df = pd.DataFrame([
             {
@@ -330,21 +375,21 @@ class InteractionTester:
                 "Algorithm": r.algorithm,
                 "Mean_Interaction": r.mean_interaction,
                 "Std_Interaction": r.std_interaction,
-                "P_Value": r.p_value,
+                "Instability_Score": r.instability_score,
                 "Per_Interaction_AUC": r.per_interaction_auc,
                 "Std_AUC": r.std_auc,
-                "Significant": r.significant,
+                "Robust": r.robust,
                 "N_Seeds": r.n_seeds,
             }
             for r in results
         ])
 
         if correction_method and len(df) > 1:
-            reject, adj_p, _, _ = multipletests(
-                df["P_Value"], alpha=self.alpha, method=correction_method
+            reject, adj_scores, _, _ = multipletests(
+                df["Instability_Score"], alpha=self.alpha, method=correction_method
             )
-            df["Adjusted_P_Value"] = adj_p
-            df["Significant_Adjusted"] = reject
+            df["Adjusted_Instability_Score"] = adj_scores
+            df["Robust_Adjusted"] = reject
 
         return df
 
@@ -357,20 +402,21 @@ class InteractionTester:
         result: InteractionResult,
         figsize: Tuple[int, int] = (10, 6),
     ):
-        """Plot bootstrap distribution of interaction values with zero reference."""
+        """Plot seed distribution of interaction values with zero reference."""
         fig, axes = plt.subplots(1, 2, figsize=(figsize[0] * 2, figsize[1]))
 
         # Left: interaction value distribution
         ax = axes[0]
         sns.histplot(result.interaction_distribution, kde=True, ax=ax)
-        ax.axvline(0, color="r", linestyle="--", label="H0: zero", alpha=0.7)
+        ax.axvline(0, color="r", linestyle="--", label="Zero (no interaction)", alpha=0.7)
         ax.axvline(
             result.mean_interaction, color="g", linestyle="-",
             label=f"Mean: {result.mean_interaction:.6f}", alpha=0.7,
         )
         ax.set_title(
             f"Interaction Distribution: {result.feature_i} x {result.feature_j}\n"
-            f"{result.algorithm} | p={result.p_value:.4f} | n_seeds={result.n_seeds}"
+            f"{result.algorithm} | instability={result.instability_score:.4f} | "
+            f"n_seeds={result.n_seeds}"
         )
         ax.set_xlabel("Mean SHAP Interaction Value")
         ax.set_ylabel("Frequency")
@@ -379,7 +425,7 @@ class InteractionTester:
         # Right: per-interaction AUC distribution
         ax = axes[1]
         sns.histplot(result.auc_distribution, kde=True, ax=ax)
-        ax.axvline(0.5, color="r", linestyle="--", label="H0: no discrimination", alpha=0.7)
+        ax.axvline(0.5, color="r", linestyle="--", label="No discrimination (0.5)", alpha=0.7)
         ax.axvline(
             result.mean_auc, color="g", linestyle="-",
             label=f"Mean AUC: {result.mean_auc:.4f}", alpha=0.7,
@@ -402,7 +448,7 @@ class InteractionTester:
     ):
         """
         Plot running mean and std of interaction value across seeds.
-        Useful for determining if n_seeds is sufficient.
+        Useful for determining if n_seeds is sufficient for stability.
         """
         dist = result.interaction_distribution
         running_mean = np.cumsum(dist) / np.arange(1, len(dist) + 1)
@@ -456,7 +502,12 @@ class InteractionTester:
 
 class InteractionVoter:
     """
-    Run interaction testing across multiple algorithms and vote.
+    Run interaction stability testing across multiple algorithms and vote.
+
+    An interaction is considered robust if it is stable (low instability_score)
+    across seeds for a given algorithm. Cross-algorithm voting then identifies
+    interactions that are robust properties of the data, not artifacts of a
+    specific algorithm's splitting strategy.
 
     Parameters
     ----------
@@ -468,7 +519,7 @@ class InteractionVoter:
     n_seeds : int
         Number of seeds per algorithm.
     alpha : float
-        Significance threshold.
+        Instability threshold below which an interaction is considered robust.
     use_gpu : bool
         GPU acceleration for SHAP.
     n_jobs : int
@@ -509,8 +560,8 @@ class InteractionVoter:
         """
         Test each feature pair across all algorithms and tally votes.
 
-        A pair receives a vote from an algorithm if it is significant
-        (p < alpha) after the bootstrap stability test.
+        A pair receives a vote from an algorithm if it is robust
+        (instability_score < alpha) across that algorithm's seed runs.
         """
         all_results = {}
         for algo_name, tester in self.testers.items():
@@ -533,7 +584,7 @@ class InteractionVoter:
             for algo_name in self.testers:
                 r = all_results[(algo_name, feat_i, feat_j)]
                 algo_results[algo_name] = r
-                if r.significant:
+                if r.robust:
                     votes += 1
                 aucs.append(r.per_interaction_auc)
 
@@ -567,9 +618,9 @@ class InteractionVoter:
                 "Mean_AUC": vr.mean_auc_across_algorithms,
             }
             for algo_name, r in vr.algorithm_results.items():
-                row[f"{algo_name}_p"] = r.p_value
+                row[f"{algo_name}_instability"] = r.instability_score
                 row[f"{algo_name}_auc"] = r.per_interaction_auc
-                row[f"{algo_name}_significant"] = r.significant
+                row[f"{algo_name}_robust"] = r.robust
             rows.append(row)
 
         return pd.DataFrame(rows)
@@ -584,13 +635,13 @@ class InteractionVoter:
         pair_labels = [f"{vr.feature_i} x {vr.feature_j}" for vr in vote_results]
 
         auc_matrix = np.zeros((len(vote_results), len(algo_names)))
-        sig_matrix = np.zeros((len(vote_results), len(algo_names)), dtype=bool)
+        robust_matrix = np.zeros((len(vote_results), len(algo_names)), dtype=bool)
 
         for i, vr in enumerate(vote_results):
             for j, algo in enumerate(algo_names):
                 r = vr.algorithm_results[algo]
                 auc_matrix[i, j] = r.per_interaction_auc
-                sig_matrix[i, j] = r.significant
+                robust_matrix[i, j] = r.robust
 
         fig, ax = plt.subplots(figsize=figsize)
         sns.heatmap(
@@ -603,17 +654,17 @@ class InteractionVoter:
             ax=ax,
         )
 
-        # Mark significant cells
-        for i in range(sig_matrix.shape[0]):
-            for j in range(sig_matrix.shape[1]):
-                if sig_matrix[i, j]:
+        # Mark robust cells
+        for i in range(robust_matrix.shape[0]):
+            for j in range(robust_matrix.shape[1]):
+                if robust_matrix[i, j]:
                     ax.text(
                         j + 0.5, i + 0.85, "*",
                         ha="center", va="center",
                         fontsize=14, fontweight="bold", color="black",
                     )
 
-        ax.set_title("Per-Interaction AUC by Algorithm (* = significant)")
+        ax.set_title("Per-Interaction AUC by Algorithm (* = robust)")
         plt.tight_layout()
         plt.show()
 
