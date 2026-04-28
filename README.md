@@ -1,6 +1,6 @@
 # predykt
 
-A Python toolkit for rigorous feature interaction analysis in machine learning models. Combines cyclical optimal binning, SHAP interaction stability testing, FWL representation testing, and seed robustness validation into a unified workflow for credit risk and tabular ML.
+A Python toolkit for rigorous feature interaction analysis in machine learning models. Combines cyclical optimal binning, SHAP interaction stability testing, residual representation testing, and seed robustness validation into a unified workflow for credit risk and tabular ML.
 
 ## Why predykt?
 
@@ -30,7 +30,7 @@ pip install predykt
 | `InteractionVoter` | Cross-algorithm voting to distinguish data interactions from algorithm artifacts |
 | `SeedRobustnessValidator` | Statistical validation of hyperparameter config robustness across seeds |
 | `FeatureBinningAnalyzer` | IV uplift screening for feature pair interactions via OptBinning |
-| `FWLRepresentationTester` | FWL-based test of whether an engineered representation explains base-model residuals |
+| `ResidualRepresentationTester` | Residual-based test of whether an engineered representation explains base-model residuals |
 | `SHAPInteractionAnalyzer` | Three-layer SHAP attribution corrected for collinearity and cross-group aliasing |
 
 ## Quick Start
@@ -244,16 +244,16 @@ print(table)
 
 > **Interpretation note:** The IV uplift measure is a screening heuristic, not a formal interaction test. Pairs with high uplift are candidates for the more rigorous `InteractionTester` / `InteractionVoter` pipeline.
 
-### 6. FWL Representation Testing
+### 6. Residual Representation Testing
 
-After confirming an interaction pair is stable, `FWLRepresentationTester` answers: does a specific engineered transformation of that pair explain structure the base model missed?
+After confirming an interaction pair is stable, `ResidualRepresentationTester` answers: does a specific engineered transformation of that pair explain structure the base model missed?
 
 The test uses the Frisch-Waugh-Lovell theorem. Stage 1 computes out-of-fold residuals Ỹ = y - p̂ via K-fold cross-fitting. Stage 2 regresses Ỹ on the candidate feature Tk and tests H0: beta1 = 0. A significant result means Tk captures signal the base model failed to learn.
 
 ```python
 import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier
-from predykt import FWLRepresentationTester, OLSEstimator, HSICEstimator
+from predykt import ResidualRepresentationTester, OLSEstimator, HSICEstimator
 
 # Candidate representations of the (age, income) interaction
 reps = pd.DataFrame({
@@ -262,7 +262,7 @@ reps = pd.DataFrame({
     "log_ratio": np.log1p(X["age"]) - np.log1p(X["income"]),
 })
 
-tester = FWLRepresentationTester(
+tester = ResidualRepresentationTester(
     model=GradientBoostingClassifier(n_estimators=200, random_state=42),
     criterion=[OLSEstimator(), HSICEstimator(n_permutations=500)],
     n_folds=5,
