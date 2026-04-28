@@ -1,4 +1,4 @@
-"""
+﻿"""
 Seed Robustness Validator
 =========================
 Framework-agnostic diagnostic tool that determines whether a hyperparameter
@@ -11,7 +11,7 @@ Theory:
 
 Statistical Methods:
     1. Chi-square variance test (H0: sigma^2 <= sigma^2_max, one-sided upper)
-    2. Normal tolerance interval (95/95 — 95% confidence that 95% of future
+    2. Normal tolerance interval (95/95: 95% confidence that 95% of future
        seed runs fall within [L, U])
     3. Coefficient of Variation (CV)
     4. Shapiro-Wilk normality test (gates parametric vs bootstrap path)
@@ -272,7 +272,7 @@ class SeedRobustnessValidator:
         if not report.is_normal:
             notes.append(
                 f"Shapiro-Wilk rejected normality (p={report.shapiro_p:.4f}). "
-                "Chi-square and tolerance interval assume normality — interpret "
+                "Chi-square and tolerance interval assume normality; interpret "
                 "with caution. Bootstrap CI for std is more reliable here."
             )
 
@@ -284,7 +284,7 @@ class SeedRobustnessValidator:
             )
         else:
             notes.append(
-                f"Chi-square: FAIL. Reject H0 — observed std ({report.std:.6f}) "
+                f"Chi-square: FAIL. Reject H0; observed std ({report.std:.6f}) "
                 f"exceeds sigma_max ({report.sigma_max:.6f}) with statistical "
                 f"significance. p={report.chisq_p:.4f}."
             )
@@ -304,10 +304,10 @@ class SeedRobustnessValidator:
         elif cv_pct < 3.0:
             cv_verdict = "acceptable (1% <= CV < 3%)"
         elif cv_pct < 5.0:
-            cv_verdict = "marginal (3% <= CV < 5%) — investigate"
+            cv_verdict = "marginal (3% <= CV < 5%), investigate"
         else:
-            cv_verdict = "poor (CV >= 5%) — this config is seed-sensitive"
-        notes.append(f"Coefficient of Variation: {cv_pct:.2f}% — {cv_verdict}.")
+            cv_verdict = "poor (CV >= 5%), this config is seed-sensitive"
+        notes.append(f"Coefficient of Variation: {cv_pct:.2f}% - {cv_verdict}.")
 
         # 5. Overall
         failures = []
@@ -398,7 +398,7 @@ class SeedRobustnessValidator:
         """Print human-readable diagnostic report to stdout."""
         sep = "=" * 65
         print(sep)
-        print(f"  SEED ROBUSTNESS REPORT — {report.metric_name}")
+        print(f"  SEED ROBUSTNESS REPORT: {report.metric_name}")
         print(sep)
 
         print(f"\n{'Direction:':<30} {'higher is better' if report.higher_is_better else 'lower is better'}")
@@ -462,7 +462,7 @@ class SeedRobustnessValidator:
 
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
         fig.suptitle(
-            f"Seed Robustness Diagnostics — {report.metric_name}  "
+            f"Seed Robustness Diagnostics: {report.metric_name}  "
             f"[Verdict: {report.verdict}]",
             fontsize=14,
             fontweight="bold",
@@ -546,7 +546,7 @@ class SeedRobustnessValidator:
 #     from sklearn.metrics import roc_auc_score
 #     from sklearn.model_selection import train_test_split
 
-#     # Fixed dataset (seed for data only — held constant)
+#     # Fixed dataset (seed for data only , held constant)
 #     X, y = make_classification(
 #         n_samples=1000, n_features=20, n_informative=10,
 #         n_redundant=5, random_state=999, flip_y=0.05,

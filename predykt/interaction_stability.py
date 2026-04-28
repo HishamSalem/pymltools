@@ -7,7 +7,7 @@ fits with varied random seeds, then validates across algorithm families.
 
 Replaces the permutation-on-fixed-model approach (which tests the wrong
 null hypothesis) with a refit-across-seeds approach that tests whether
-the interaction is a stable property of the model — not an artifact of
+the interaction is a stable property of the model, not an artifact of
 a single random seed.
 
 Core idea:
@@ -15,7 +15,7 @@ Core idea:
     - A real interaction should have predictive power (per-interaction AUC)
     - A real interaction should appear across multiple algorithms (vote)
 
-NOTE: This procedure tests *algorithmic stability* — whether a given
+NOTE: This procedure tests *algorithmic stability*: whether a given
 interaction persists regardless of model randomness (seed, subsampling,
 initialization). It does NOT test statistical significance in the
 frequentist sense (i.e., it does not test against a null derived from
@@ -276,7 +276,7 @@ class InteractionTester:
             idx_j = columns.index(feat_j)
             pair_indices.append((idx_i, idx_j))
 
-        # Run all seeds — each seed computes all pairs in one pass
+        # Run all seeds; each seed computes all pairs in one pass
         if self.n_jobs > 1:
             all_seed_results = Parallel(n_jobs=self.n_jobs)(
                 delayed(self._fit_single_seed)(X, y, int(seed), pair_indices)
@@ -333,7 +333,7 @@ class InteractionTester:
 
         NOTE: This uses a single seed for speed. Pairs selected here
         may include false positives that the full test_pairs run will
-        filter out. This is intentional — it's a cheap pre-filter,
+        filter out. This is intentional: it's a cheap pre-filter,
         not a final result.
         """
         params = {**self.base_params, self.seed_param: seed}
