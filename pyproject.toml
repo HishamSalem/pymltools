@@ -12,7 +12,7 @@ license-files = ["LICENSE"]
 # TODO: Replace PUBLIC_EMAIL_HERE with a dedicated public contact email
 # before publishing to PyPI. Do NOT use your personal/account email.
 authors = [
-    {name = "Hisham Salem", email = "PUBLIC_EMAIL_HERE"},
+    {name = "Hisham Salem", email = "predktpackage@gmail.com"},
 ]
 requires-python = ">=3.10"
 classifiers = [
