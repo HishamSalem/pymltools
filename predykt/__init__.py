@@ -6,7 +6,7 @@ from .criteria import Stage2Estimator, Stage2Result, OLSEstimator, HSICEstimator
 from .fwl import ResidualRepresentationTester
 from .shap_analyzer import SHAPInteractionAnalyzer
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __author__ = "Hisham Salem"
 
 __all__ = [

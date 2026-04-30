@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "predykt"
+dynamic = ["version"]
+description = "A rigorous Python toolkit for predictive ML — feature analysis, interaction testing, and model robustness validation"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+# TODO: Replace PUBLIC_EMAIL_HERE with a dedicated public contact email
+# before publishing to PyPI. Do NOT use your personal/account email.
+authors = [
+    {name = "Hisham Salem", email = "PUBLIC_EMAIL_HERE"},
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy>=1.22",
+    "pandas>=1.5",
+    "scikit-learn>=1.1",
+    "shap>=0.41",
+    "optbinning>=0.17",
+    "scipy>=1.9",
+    "statsmodels>=0.13",
+    "tqdm>=4.64",
+    "matplotlib>=3.5",
+    "seaborn>=0.12",
+    "joblib>=1.1",
+    "numba>=0.56",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff"]
+
+[project.urls]
+Homepage = "https://github.com/HishamSalem/predykt"
+
+[tool.setuptools.dynamic]
+version = {attr = "predykt.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
